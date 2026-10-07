@@ -1,0 +1,123 @@
+"""Full experiment runner for Project #9.
+
+Experiment A: architectures x datasets (CE loss), 3 seeds.
+Experiment B: losses x {dermamnist, bloodmnist-subset} on plannet, 3 seeds.
+Experiment C: TTA strategies on trained plannet models (uses saved models).
+
+Usage: python3 run_experiments.py A|B|C
+Results appended as JSONL to results.jsonl.
+"""
+import json
+import os
+import sys
+import torch
+
+from train import train_one, evaluate
+from data import get_loaders
+from models import build_model
+
+OUT = os.path.join(os.path.dirname(__file__), "results.jsonl")
+CKPT = os.path.join(os.path.dirname(__file__), "checkpoints")
+os.makedirs(CKPT, exist_ok=True)
+
+
+def log(rec):
+    with open(OUT, "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    print(json.dumps({k: rec[k] for k in ("exp", "model", "dataset", "loss", "seed")
+                      if k in rec},
+                     ) + f" val_acc={rec['val']['acc']:.4f} auc={rec['val']['auc']:.4f}",
+          flush=True)
+
+
+EPOCHS = int(os.environ.get("MMD_EPOCHS", "12"))
+SEEDS = int(os.environ.get("MMD_SEEDS", "3"))
+BATCH = int(os.environ.get("MMD_BATCH", "128"))
+DS_LIST = os.environ.get("MMD_DS", "pneumoniamnist,dermamnist,bloodmnist")
+
+
+def exp_a():
+    models = ["plannet", "gcvit-perceiver-lite", "resnet18", "vit-tiny"]
+    ds_map = {"pneumoniamnist": ("pneumoniamnist", None),
+              "dermamnist": ("dermamnist", None),
+              "bloodmnist": ("bloodmnist", 12000)}
+    datasets = [ds_map[d] for d in DS_LIST.split(",")]
+    for ds, sub in datasets:
+        for m in models:
+            for seed in range(SEEDS):
+                res, _ = train_one(m, ds, "ce", epochs=EPOCHS, seed=seed,
+                                   subsample=sub, batch=BATCH)
+                rec = {"exp": "A"} | {k: v for k, v in res.items()
+                                      if k != "model"}
+                rec["model"] = m
+                log(rec)
+
+
+def exp_b():
+    losses = ["ce", "focal", "cb-focal", "dacf"]
+    datasets = [("dermamnist", None), ("bloodmnist", 12000)]
+    for ds, sub in datasets:
+        for loss in losses:
+            for seed in range(SEEDS):
+                res, _ = train_one("plannet", ds, loss, epochs=EPOCHS,
+                                   seed=seed, subsample=sub, batch=BATCH)
+                rec = {"exp": "B"} | {k: v for k, v in res.items()
+                                      if k != "model"}
+                rec["model"] = "plannet"
+                log(rec)
+
+
+def exp_c():
+    # Train plannet once per dataset (seed 0), save, then evaluate TTA variants
+    # on test (clean) and shifted (noise) inputs.
+    from tta import predict_single, predict_naive_tta, predict_cg_ttc
+    import numpy as np
+    datasets = [("pneumoniamnist", None, 2), ("dermamnist", None, 7)]
+    for ds, sub, ncls in datasets:
+        res, model = train_one("plannet", ds, "ce", epochs=12, seed=0,
+                               subsample=sub)
+        ckpt = os.path.join(CKPT, f"plannet_{ds}.pt")
+        torch.save(model.state_dict(), ckpt)
+        _, _, test_l, _ = get_loaders(ds, 256, sub, 0)
+        x_all = torch.cat([x for x, _ in test_l])
+        y_all = torch.cat([y for _, y in test_l]).numpy()
+
+        def acc_of(probs):
+            return float((probs.argmax(1).numpy() == y_all).mean())
+
+        # calibrate tau on a val split (use first half of test as val proxy)
+        n = len(x_all)
+        xv, yv = x_all[:n // 2], y_all[:n // 2]
+        xt, yt = x_all[n // 2:], y_all[n // 2:]
+        best_tau, best_cov = 0.05, None
+        for tau in [0.01, 0.03, 0.05, 0.08, 0.12]:
+            _, ref, _ = predict_cg_ttc(model, xv, k=8, tau=tau)
+            rate = float(ref.mean())
+            if rate <= 0.15:
+                best_tau = tau
+        out = {"exp": "C", "dataset": ds, "tau": best_tau}
+        for name, fn in [("single", lambda m, x: (predict_single(m, x), None)),
+                         ("naive_tta", lambda m, x: (predict_naive_tta(m, x), None)),
+                         ("cg_ttc", lambda m, x: predict_cg_ttc(m, x, k=8, tau=best_tau)[:2])]:
+            probs, ref = fn(model, xt)
+            out[name + "_acc"] = acc_of(probs)
+            if ref is not None:
+                out[name + "_referral"] = float(ref.mean())
+        # shifted eval: gaussian noise sigma=0.1
+        torch.manual_seed(0)
+        xs = torch.clamp(xt + torch.randn_like(xt) * 0.1, 0, 1)
+        for name, fn in [("single", lambda m, x: (predict_single(m, x), None)),
+                         ("naive_tta", lambda m, x: (predict_naive_tta(m, x), None)),
+                         ("cg_ttc", lambda m, x: predict_cg_ttc(m, x, k=8, tau=best_tau)[:2])]:
+            probs, ref = fn(model, xs)
+            acc = float((probs.argmax(1).numpy() == yt).mean())
+            out[name + "_acc_shift"] = acc
+            if ref is not None:
+                out[name + "_referral_shift"] = float(ref.mean())
+        log(out)
+
+
+if __name__ == "__main__":
+    which = sys.argv[1]
+    torch.set_num_threads(2)
+    {"A": exp_a, "B": exp_b, "C": exp_c}[which]()

@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pt
+results*.jsonl
+pilot_*.log
+checkpoints/
+.medmnist/

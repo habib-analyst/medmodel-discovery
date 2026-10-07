@@ -1,0 +1,4 @@
+torch>=2.0
+numpy
+scikit-learn
+medmnist==3.0.2
