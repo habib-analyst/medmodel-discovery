@@ -16,14 +16,48 @@ from train import train_one, evaluate
 from data import get_loaders
 from models import build_model
 
-OUT = os.path.join(os.path.dirname(__file__), "results.jsonl")
+OUT = os.environ.get("MMD_OUT", os.path.join(os.path.dirname(__file__),
+                                        "results.jsonl"))
 CKPT = os.path.join(os.path.dirname(__file__), "checkpoints")
 os.makedirs(CKPT, exist_ok=True)
 
 
+def _seen_keys():
+    """Keys of already-logged successful runs (resume support).
+
+    If the Kaggle session dies mid-matrix, results_full.jsonl still holds
+    every completed run; on relaunch, completed triples are skipped.
+    """
+    seen = set()
+    if os.path.exists(OUT):
+        with open(OUT) as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("status") == "error":
+                    continue
+                key = tuple(r.get(k) for k in ("exp", "model", "dataset",
+                                              "loss", "seed"))
+                if None not in key:
+                    seen.add(key)
+    return seen
+
+
+SEEN = _seen_keys()
+if SEEN:
+    print(f"resume: {len(SEEN)} completed runs already logged — skipping",
+          flush=True)
+
+
 def log(rec):
+    # Per-run append + fsync: if the Kaggle session dies mid-matrix, every
+    # finished run survives (run2 2026-10-08 lost all records for this reason).
     with open(OUT, "a") as f:
         f.write(json.dumps(rec) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
     print(json.dumps({k: rec[k] for k in ("exp", "model", "dataset", "loss", "seed")
                       if k in rec},
                      ) + f" val_acc={rec['val']['acc']:.4f} auc={rec['val']['auc']:.4f}",
@@ -78,8 +112,20 @@ def exp_a():
                     print(f"SKIP exp A {ds} {m} seed={seed} (MMD_ONLY)",
                           flush=True)
                     continue
-                res, _ = train_one(m, ds, "ce", epochs=EPOCHS, seed=seed,
-                                   subsample=sub, batch=BATCH)
+                if ("A", m, ds, "ce", seed) in SEEN:
+                    print(f"SKIP exp A {ds} {m} seed={seed} (already logged)",
+                          flush=True)
+                    continue
+                try:
+                    res, _ = train_one(m, ds, "ce", epochs=EPOCHS, seed=seed,
+                                       subsample=sub, batch=BATCH)
+                except Exception as e:  # one bad run must not kill the matrix
+                    print(f"ERROR exp A {ds} {m} seed={seed}: {type(e).__name__}: {e}",
+                          flush=True)
+                    log({"exp": "A", "model": m, "dataset": ds, "loss": "ce",
+                         "seed": seed, "status": "error",
+                         "error": f"{type(e).__name__}: {e}"})
+                    continue
                 rec = {"exp": "A"} | {k: v for k, v in res.items()
                                       if k != "model"}
                 rec["model"] = m
@@ -92,8 +138,20 @@ def exp_b():
     for ds, sub in datasets:
         for loss in losses:
             for seed in range(SEEDS):
-                res, _ = train_one("plannet", ds, loss, epochs=EPOCHS,
-                                   seed=seed, subsample=sub, batch=BATCH)
+                if ("B", "plannet", ds, loss, seed) in SEEN:
+                    print(f"SKIP exp B {ds} {loss} seed={seed} (already logged)",
+                          flush=True)
+                    continue
+                try:
+                    res, _ = train_one("plannet", ds, loss, epochs=EPOCHS,
+                                       seed=seed, subsample=sub, batch=BATCH)
+                except Exception as e:  # one bad run must not kill the matrix
+                    print(f"ERROR exp B {ds} {loss} seed={seed}: {type(e).__name__}: {e}",
+                          flush=True)
+                    log({"exp": "B", "model": "plannet", "dataset": ds,
+                         "loss": loss, "seed": seed, "status": "error",
+                         "error": f"{type(e).__name__}: {e}"})
+                    continue
                 rec = {"exp": "B"} | {k: v for k, v in res.items()
                                       if k != "model"}
                 rec["model"] = "plannet"
