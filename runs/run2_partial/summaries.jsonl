@@ -1,0 +1,3 @@
+{"exp": "A", "model": "gcvit-perceiver-lite", "dataset": "bloodmnist", "loss": "ce", "seed": 2, "val_acc": 0.9188, "val_auc": 0.9933, "status": "stdout-derived-provisional"}
+{"exp": "A", "model": "resnet18", "dataset": "bloodmnist", "loss": "ce", "seed": 0, "val_acc": 0.9614, "val_auc": 0.9986, "status": "stdout-derived-provisional"}
+{"exp": "A", "model": "resnet18", "dataset": "bloodmnist", "loss": "ce", "seed": 1, "val_acc": 0.9655, "val_auc": 0.9984, "status": "stdout-derived-provisional"}
