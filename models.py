@@ -116,7 +116,7 @@ class GCViTLitePerceiverLite(nn.Module):
         self.pos = nn.Parameter(torch.randn(1, 50, dim) * 0.02)
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(dim, heads, dim * 2, batch_first=True,
-                                       activation="gelu")
+                                       activation="gelu", norm_first=True)
             for _ in range(depth)
         ])
         # global-context readouts after each block (GCViT-style): reuse cls
@@ -128,7 +128,18 @@ class GCViTLitePerceiverLite(nn.Module):
         self.pnorm = nn.LayerNorm(dim)
         self.pmlp = nn.Sequential(nn.Linear(dim, dim * 2), nn.GELU(),
                                   nn.Linear(dim * 2, dim))
-        self.head = nn.Sequential(nn.LayerNorm(dim), nn.Linear(dim, num_classes))
+        # NOTE (fixed 2026-10-08): BatchNorm1d -- NOT LayerNorm -- before the
+        # head. LayerNorm leaves the batch-mean (constant) component of the
+        # transformer residual stream unconstrained; the head weights and that
+        # constant component form a runaway feedback loop (||c|| 10->118 in one
+        # epoch) whose constant logit offset saturates the softmax, while the
+        # per-block post-norms geometrically attenuate the input-dependent
+        # signal (0.086->1e-4 across 4 blocks). Either way the model collapses
+        # to constant majority-class predictions. BatchNorm centers the batch,
+        # closing the feedback channel (this is why the BN-based conv baselines
+        # train fine). Pre-norm blocks keep the input-dependent signal alive.
+        self.bn = nn.BatchNorm1d(dim)
+        self.head = nn.Linear(dim, num_classes)
 
     def forward(self, x):
         B = x.shape[0]
@@ -141,7 +152,7 @@ class GCViTLitePerceiverLite(nn.Module):
                             need_weights=False)
         lat = self.pnorm(lat + out)
         lat = lat + self.pmlp(lat)
-        return self.head(lat.mean(dim=1))
+        return self.head(self.bn(lat.mean(dim=1)))
 
 
 class ResNet18Small(nn.Module):
@@ -181,10 +192,14 @@ class ViTTiny(nn.Module):
         self.pos = nn.Parameter(torch.randn(1, n + 1, dim) * 0.02)
         self.blocks = nn.ModuleList([
             nn.TransformerEncoderLayer(dim, heads, dim * 2, batch_first=True,
-                                       activation="gelu")
+                                       activation="gelu", norm_first=True)
             for _ in range(depth)
         ])
-        self.norm = nn.LayerNorm(dim)
+        # NOTE (fixed 2026-10-08): BatchNorm1d -- NOT LayerNorm -- before the
+        # head. See GCViTLitePerceiverLite for the full explanation: LayerNorm
+        # leaves the batch-mean component unconstrained, enabling a runaway
+        # head/constant-component feedback loop -> constant predictions.
+        self.bn = nn.BatchNorm1d(dim)
         self.head = nn.Linear(dim, num_classes)
 
     def forward(self, x):
@@ -193,7 +208,7 @@ class ViTTiny(nn.Module):
         t = torch.cat([self.cls.expand(B, -1, -1), t], dim=1) + self.pos
         for blk in self.blocks:
             t = blk(t)
-        return self.head(self.norm(t[:, 0]))
+        return self.head(self.bn(t[:, 0]))
 
 
 def build_model(name, in_ch, num_classes):

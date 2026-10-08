@@ -79,3 +79,34 @@ def test_tta_shapes_and_referral():
     assert (ref_all == 1).all()
     _, ref_none, _ = predict_cg_ttc(m, x, k=4, tau=1e9)
     assert (ref_none == 0).all()
+
+
+def test_transformers_do_not_collapse_to_constant():
+    """Regression test for the 2026-10-08 collapse bug.
+
+    gcvit-perceiver-lite and vit-tiny trained to CONSTANT majority-class
+    predictions: val_acc identical across seeds (0.7424 pneumoniamnist),
+    single predicted class, val AUC 0.61-0.75 -- while plannet/resnet18
+    trained normally. The 6 pre-existing smoke tests did not catch it.
+
+    Root cause (models.py): LayerNorm leaves the batch-mean (constant)
+    component of the transformer residual stream unconstrained, so the head
+    weights and that constant component form a runaway feedback loop
+    (||c|| 10 -> 118 in one epoch) whose constant logit offset saturates the
+    softmax; the per-block post-norms additionally attenuate the
+    input-dependent signal geometrically (0.086 -> 1e-4 across 4 blocks).
+    Fix: pre-norm transformer blocks + BatchNorm1d (not LayerNorm) before
+    the classification head.
+
+    A short 2-epoch run must leave a strong discriminative signal: collapsed
+    models score AUC 0.61-0.75 here, fixed models 0.89+.
+    """
+    torch.set_num_threads(2)
+    from train import train_one
+    for name in ["vit-tiny", "gcvit-perceiver-lite"]:
+        res, _ = train_one(name, "pneumoniamnist", "ce", epochs=2, seed=0,
+                           subsample=1500, batch=128)
+        auc = res["val"]["auc"]
+        assert auc > 0.80, (
+            f"{name} looks collapsed after short train: val_auc={auc:.4f} "
+            f"(collapsed models score 0.61-0.75, healthy ones 0.89+)")

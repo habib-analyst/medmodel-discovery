@@ -35,6 +35,35 @@ SEEDS = int(os.environ.get("MMD_SEEDS", "3"))
 BATCH = int(os.environ.get("MMD_BATCH", "128"))
 DS_LIST = os.environ.get("MMD_DS", "pneumoniamnist,dermamnist,bloodmnist")
 
+# MMD_ONLY: optional run filter, e.g.
+#   "bloodmnist:resnet18:0,1,2;bloodmnist:vit-tiny:0,1,2;bloodmnist:gcvit-perceiver-lite:2"
+# Only matching (dataset, model, seed) triples run; everything else is skipped.
+# Empty / unset = no filter (full matrix).
+ONLY = os.environ.get("MMD_ONLY", "").strip()
+
+
+def _parse_only(s):
+    triples = set()
+    for group in s.split(";"):
+        group = group.strip()
+        if not group:
+            continue
+        parts = group.split(":")
+        if len(parts) != 3:
+            raise ValueError(f"bad MMD_ONLY group: {group!r}")
+        ds, m, seeds = parts
+        for sd in seeds.split(","):
+            triples.add((ds.strip(), m.strip(), int(sd.strip())))
+    return triples
+
+
+ONLY_TRIPLES = _parse_only(ONLY) if ONLY else None
+
+
+def _run_a(ds, m, seed, sub):
+    """True if this (dataset, model, seed) triple should run under MMD_ONLY."""
+    return ONLY_TRIPLES is None or (ds, m, seed) in ONLY_TRIPLES
+
 
 def exp_a():
     models = ["plannet", "gcvit-perceiver-lite", "resnet18", "vit-tiny"]
@@ -45,6 +74,10 @@ def exp_a():
     for ds, sub in datasets:
         for m in models:
             for seed in range(SEEDS):
+                if not _run_a(ds, m, seed, sub):
+                    print(f"SKIP exp A {ds} {m} seed={seed} (MMD_ONLY)",
+                          flush=True)
+                    continue
                 res, _ = train_one(m, ds, "ce", epochs=EPOCHS, seed=seed,
                                    subsample=sub, batch=BATCH)
                 rec = {"exp": "A"} | {k: v for k, v in res.items()
