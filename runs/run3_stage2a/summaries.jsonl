@@ -1,0 +1,2 @@
+{"model": "gcvit-perceiver-lite", "dataset": "bloodmnist", "seed": 0, "val_acc": 0.9182, "val_auc": 0.9937, "source": "run3-stage2a cell-2 stdout, 2026-10-09 ~10:40 PKT", "run_id": "run3-stage2a"}
+{"model": "gcvit-perceiver-lite", "dataset": "bloodmnist", "seed": 1, "val_acc": 0.9141, "val_auc": 0.9931, "source": "run3-stage2a cell-2 stdout, 2026-10-09 ~10:40 PKT", "run_id": "run3-stage2a"}
