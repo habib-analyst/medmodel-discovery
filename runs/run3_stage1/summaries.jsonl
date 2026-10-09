@@ -1,0 +1,4 @@
+{"model": "resnet18", "dataset": "bloodmnist", "seed": 2, "val_acc": 0.9614, "val_auc": 0.9981, "source": "run3-stage1 cell-2 stdout, 2026-10-09 ~04:45 PKT", "run_id": "run3-stage1"}
+{"model": "vit-tiny", "dataset": "bloodmnist", "seed": 0, "val_acc": 0.9282, "val_auc": 0.9941, "source": "run3-stage1 cell-2 stdout, 2026-10-09 ~04:45 PKT", "run_id": "run3-stage1"}
+{"model": "vit-tiny", "dataset": "bloodmnist", "seed": 1, "val_acc": 0.9252, "val_auc": 0.9941, "source": "run3-stage1 cell-2 stdout, 2026-10-09 ~04:45 PKT", "run_id": "run3-stage1"}
+{"model": "vit-tiny", "dataset": "bloodmnist", "seed": 2, "val_acc": 0.9235, "val_auc": 0.9944, "source": "run3-stage1 cell-2 stdout, 2026-10-09 ~04:45 PKT", "run_id": "run3-stage1"}
