@@ -1,0 +1,6 @@
+{"model": "gcvit-perceiver-lite", "dataset": "pneumoniamnist", "seed": 0, "val_acc": 0.9561, "val_auc": 0.9914, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
+{"model": "gcvit-perceiver-lite", "dataset": "pneumoniamnist", "seed": 1, "val_acc": 0.9523, "val_auc": 0.9865, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
+{"model": "gcvit-perceiver-lite", "dataset": "pneumoniamnist", "seed": 2, "val_acc": 0.9561, "val_auc": 0.9893, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
+{"model": "vit-tiny", "dataset": "pneumoniamnist", "seed": 0, "val_acc": 0.9523, "val_auc": 0.9838, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
+{"model": "vit-tiny", "dataset": "pneumoniamnist", "seed": 1, "val_acc": 0.9618, "val_auc": 0.9895, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
+{"model": "vit-tiny", "dataset": "pneumoniamnist", "seed": 2, "val_acc": 0.9618, "val_auc": 0.9899, "source": "run3-stage2a2 cell-2 stdout, 2026-10-09 ~11:05 PKT", "run_id": "run3-stage2a2"}
