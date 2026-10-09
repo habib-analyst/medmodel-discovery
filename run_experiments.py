@@ -210,7 +210,11 @@ def exp_c():
         y_all = torch.cat([y for _, y in test_l]).numpy()
 
         def acc_of(probs):
-            return float((probs.argmax(1).numpy() == y_all).mean())
+            # TTA predictions are computed on xt (eval half); compare against
+            # yt, not the full y_all. (Bug fix 2026-10-09: y_all caused a
+            # (312,) vs (624,) broadcast ValueError that killed the Exp-C cell
+            # before any record was logged.)
+            return float((probs.argmax(1).numpy() == yt).mean())
 
         # calibrate tau on a val split (use first half of test as val proxy)
         n = len(x_all)

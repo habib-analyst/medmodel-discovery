@@ -185,3 +185,27 @@ def test_log_handles_c_records():
     rec = open(os.path.join(tmp, 'results.jsonl')).read().strip()
     assert '"exp": "C"' in rec, rec
     print("log C-record handling verified OK")
+
+
+def test_exp_c_acc_of_uses_yt():
+    # regression: exp_c's acc_of compared TTA predictions on the eval half xt
+    # against the FULL y_all -> (312,) vs (624,) broadcast ValueError that
+    # killed the Exp-C cell before any record was logged (2026-10-09).
+    # Static check (needs no torch): the comparison target must be yt.
+    import ast
+    src = open('run_experiments.py').read()
+    tree = ast.parse(src)
+    found = False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == 'exp_c':
+            for sub in ast.walk(node):
+                if isinstance(sub, ast.FunctionDef) and sub.name == 'acc_of':
+                    found = True
+                    lines = ast.get_source_segment(src, sub).splitlines()
+                    code = '\n'.join(l for l in lines
+                                     if not l.strip().startswith('#'))
+                    assert 'yt' in code, 'acc_of does not compare against yt'
+                    assert 'y_all' not in code, \
+                        'acc_of still references y_all (broadcast bug)'
+    assert found, 'acc_of not found in exp_c'
+    print("exp_c acc_of target verified OK")
