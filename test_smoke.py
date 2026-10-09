@@ -161,3 +161,27 @@ def test_log_handles_error_records():
         ns['log'](ok)
     assert 'val_acc=0.9000' in buf.getvalue(), buf.getvalue()
     print("log error-record handling verified OK")
+
+
+def test_log_handles_c_records():
+    # regression: log() must not KeyError on Exp-C records (no 'val', no
+    # 'status' — they carry *_acc metrics instead). Would have crashed the
+    # first Exp-C run in exp_c().
+    import os, io, contextlib, tempfile
+    src = open('run_experiments.py').read()
+    start = src.index('OUT = os.environ.get("MMD_OUT"')
+    end = src.index('EPOCHS = int(')
+    tmp = tempfile.mkdtemp()
+    ns = {'os': os, 'json': __import__('json'), '__file__': 'run_experiments.py'}
+    os.environ['MMD_OUT'] = os.path.join(tmp, 'results.jsonl')
+    exec(src[start:end].replace('os.makedirs(CKPT, exist_ok=True)', ''), ns)
+    crec = {"exp": "C", "dataset": "dermamnist", "tau": 0.05,
+            "single_acc": 0.74, "cg_ttc_acc": 0.76, "cg_ttc_referral": 0.1}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ns['log'](crec)  # must not raise KeyError: 'val'
+    out = buf.getvalue()
+    assert 'single_acc' in out and 'cg_ttc_acc' in out, out
+    rec = open(os.path.join(tmp, 'results.jsonl')).read().strip()
+    assert '"exp": "C"' in rec, rec
+    print("log C-record handling verified OK")

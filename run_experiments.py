@@ -64,9 +64,14 @@ def log(rec):
     # cell on the first per-run error, defeating the error-isolation hardening)
     if rec.get("status") == "error":
         print(head + f" status=error error={rec.get('error', '')}", flush=True)
-    else:
+    elif "val" in rec:
         print(head + f" val_acc={rec['val']['acc']:.4f} auc={rec['val']['auc']:.4f}",
               flush=True)
+    else:
+        # Exp-C style records: no 'val' dict, print any *_acc metrics instead
+        # (fix 2026-10-09: pre-fix code KeyError'd on Exp-C records)
+        extra = {k: round(v, 4) for k, v in rec.items() if k.endswith("_acc")}
+        print(head + f" {json.dumps(extra)}", flush=True)
 
 
 EPOCHS = int(os.environ.get("MMD_EPOCHS", "12"))
