@@ -132,3 +132,32 @@ def test_mmd_b_filters():
     import run_experiments as re2
     assert re2.B_LOSSES is None and re2.B_DATASETS is None
     assert re2._run_b("bloodmnist", "dacf") is True
+
+
+def test_log_handles_error_records():
+    # regression: log() must not KeyError on per-run error records (no 'val' key)
+    import os, io, contextlib, tempfile
+    src = open('run_experiments.py').read()
+    start = src.index('OUT = os.environ.get("MMD_OUT"')
+    end = src.index('EPOCHS = int(')
+    tmp = tempfile.mkdtemp()
+    ns = {'os': os, 'json': __import__('json'), '__file__': 'run_experiments.py'}
+    os.environ['MMD_OUT'] = os.path.join(tmp, 'results.jsonl')
+    exec(src[start:end].replace('os.makedirs(CKPT, exist_ok=True)', ''), ns)
+    err = {"exp": "B", "model": "plannet", "dataset": "dermamnist", "loss": "ce",
+           "seed": 0, "status": "error", "error": "FileNotFoundError: x"}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ns['log'](err)  # must not raise KeyError: 'val'
+    out = buf.getvalue()
+    assert 'status=error' in out and 'FileNotFoundError' in out, out
+    rec = open(os.path.join(tmp, 'results.jsonl')).read().strip()
+    assert '"status": "error"' in rec, rec
+    # healthy records still print val_acc/val_auc
+    ok = {"exp": "A", "model": "m", "dataset": "d", "loss": "ce", "seed": 0,
+          "val": {"acc": 0.9, "auc": 0.95}}
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        ns['log'](ok)
+    assert 'val_acc=0.9000' in buf.getvalue(), buf.getvalue()
+    print("log error-record handling verified OK")

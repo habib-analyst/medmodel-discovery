@@ -58,10 +58,15 @@ def log(rec):
         f.write(json.dumps(rec) + "\n")
         f.flush()
         os.fsync(f.fileno())
-    print(json.dumps({k: rec[k] for k in ("exp", "model", "dataset", "loss", "seed")
-                      if k in rec},
-                     ) + f" val_acc={rec['val']['acc']:.4f} auc={rec['val']['auc']:.4f}",
-          flush=True)
+    head = json.dumps({k: rec[k] for k in ("exp", "model", "dataset", "loss", "seed")
+                       if k in rec})
+    # error records carry no 'val' (fix 2026-10-09: KeyError 'val' crashed the
+    # cell on the first per-run error, defeating the error-isolation hardening)
+    if rec.get("status") == "error":
+        print(head + f" status=error error={rec.get('error', '')}", flush=True)
+    else:
+        print(head + f" val_acc={rec['val']['acc']:.4f} auc={rec['val']['auc']:.4f}",
+              flush=True)
 
 
 EPOCHS = int(os.environ.get("MMD_EPOCHS", "12"))
