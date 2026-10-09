@@ -110,3 +110,25 @@ def test_transformers_do_not_collapse_to_constant():
         assert auc > 0.80, (
             f"{name} looks collapsed after short train: val_auc={auc:.4f} "
             f"(collapsed models score 0.61-0.75, healthy ones 0.89+)")
+
+
+def test_mmd_b_filters():
+    # unit-test the MMD_B_LOSS / MMD_B_DS subset logic without training
+    import importlib, os
+    os.environ["MMD_B_LOSS"] = "ce,focal"
+    os.environ["MMD_B_DS"] = "dermamnist"
+    try:
+        import run_experiments as re
+        importlib.reload(re)
+        assert re.B_LOSSES == {"ce", "focal"}
+        assert re.B_DATASETS == {"dermamnist"}
+        assert re._run_b("dermamnist", "ce") is True
+        assert re._run_b("dermamnist", "dacf") is False
+        assert re._run_b("bloodmnist", "ce") is False
+    finally:
+        del os.environ["MMD_B_LOSS"]
+        del os.environ["MMD_B_DS"]
+        importlib.reload(re)
+    import run_experiments as re2
+    assert re2.B_LOSSES is None and re2.B_DATASETS is None
+    assert re2._run_b("bloodmnist", "dacf") is True

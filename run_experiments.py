@@ -99,6 +99,29 @@ def _run_a(ds, m, seed, sub):
     return ONLY_TRIPLES is None or (ds, m, seed) in ONLY_TRIPLES
 
 
+# MMD_B_LOSS / MMD_B_DS: optional Experiment-B subsets, e.g.
+#   MMD_B_LOSS="ce,focal"  -> only those losses
+#   MMD_B_DS="dermamnist"  -> only that dataset
+# Empty / unset = full 24-run matrix. Lets long Exp-B sessions be split into
+# short survival-friendly halves after three silent Kaggle session deaths.
+def _csv_env(name):
+    v = os.environ.get(name, "").strip()
+    return set(x.strip() for x in v.split(",") if x.strip()) or None
+
+
+B_LOSSES = _csv_env("MMD_B_LOSS")
+B_DATASETS = _csv_env("MMD_B_DS")
+
+
+def _run_b(ds, loss):
+    """True if this (dataset, loss) pair should run under the B filters."""
+    if B_LOSSES is not None and loss not in B_LOSSES:
+        return False
+    if B_DATASETS is not None and ds not in B_DATASETS:
+        return False
+    return True
+
+
 def exp_a():
     models = ["plannet", "gcvit-perceiver-lite", "resnet18", "vit-tiny"]
     ds_map = {"pneumoniamnist": ("pneumoniamnist", None),
@@ -137,6 +160,9 @@ def exp_b():
     datasets = [("dermamnist", None), ("bloodmnist", 12000)]
     for ds, sub in datasets:
         for loss in losses:
+            if not _run_b(ds, loss):
+                print(f"SKIP exp B {ds} {loss} (MMD_B filter)", flush=True)
+                continue
             for seed in range(SEEDS):
                 if ("B", "plannet", ds, loss, seed) in SEEN:
                     print(f"SKIP exp B {ds} {loss} seed={seed} (already logged)",
