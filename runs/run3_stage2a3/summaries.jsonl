@@ -1,0 +1,6 @@
+{"model": "gcvit-perceiver-lite", "dataset": "dermamnist", "seed": 0, "val_acc": 0.7139, "val_auc": 0.8983, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
+{"model": "gcvit-perceiver-lite", "dataset": "dermamnist", "seed": 1, "val_acc": 0.7218, "val_auc": 0.9047, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
+{"model": "gcvit-perceiver-lite", "dataset": "dermamnist", "seed": 2, "val_acc": 0.7408, "val_auc": 0.9168, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
+{"model": "vit-tiny", "dataset": "dermamnist", "seed": 0, "val_acc": 0.7268, "val_auc": 0.9031, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
+{"model": "vit-tiny", "dataset": "dermamnist", "seed": 1, "val_acc": 0.7178, "val_auc": 0.9001, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
+{"model": "vit-tiny", "dataset": "dermamnist", "seed": 2, "val_acc": 0.7208, "val_auc": 0.8972, "source": "run3-stage2a3 cell-2 stdout, 2026-10-09 ~11:40 PKT", "run_id": "run3-stage2a3"}
